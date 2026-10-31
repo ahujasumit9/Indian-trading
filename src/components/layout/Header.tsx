@@ -2,6 +2,8 @@ import React from 'react';
 import { MarketSnapshot } from '../../lib/data/marketSimulator';
 import { Power, Activity, Menu, Play, Pause, Flame } from 'lucide-react';
 import { DataSourceStatus } from '../../types/dataSources';
+import { MarketDataBadge } from '../common/MarketDataBadge';
+
 
 interface HeaderProps {
   niftySnapshot: MarketSnapshot;
@@ -104,27 +106,12 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Right Controls: Data Source, Simulation Live Toggle, Kill Switch */}
         <div className="flex items-center gap-2 md:gap-3">
           {/* Data Source Badge */}
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-[11px] font-mono">
-            <span className="relative flex h-2 w-2">
-              <span
-                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  dataSourceStatus.activeSource === 'SIMULATOR' ? 'bg-amber-400' : 'bg-emerald-400'
-                }`}
-              />
-              <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${
-                  dataSourceStatus.activeSource === 'SIMULATOR' ? 'bg-amber-500' : 'bg-emerald-500'
-                }`}
-              />
-            </span>
-            <span className="text-slate-300 font-semibold truncate max-w-[120px] sm:max-w-none">
-              {dataSourceStatus.activeSource === 'SIMULATOR'
-                ? 'SIMULATED DATA'
-                : dataSourceStatus.activeSource === 'CSV_FILE'
-                ? 'CSV DATA'
-                : 'WEBHOOK LIVE'}
-            </span>
-          </div>
+          <MarketDataBadge
+            state={dataSourceStatus.marketDataState || (dataSourceStatus.activeSource === 'SIMULATOR' ? 'SIMULATED' : dataSourceStatus.activeSource === 'CSV_FILE' ? 'HISTORICAL' : 'LIVE')}
+            sourceLabel={dataSourceStatus.sourceLabel || (dataSourceStatus.activeSource === 'SIMULATOR' ? 'Synthetic Sim' : dataSourceStatus.activeSource === 'CSV_FILE' ? dataSourceStatus.csvFileName || 'CSV' : 'TradingView')}
+            lastUpdated={dataSourceStatus.lastUpdateTimestamp}
+          />
+
 
           {/* Simulation Toggle */}
           <button

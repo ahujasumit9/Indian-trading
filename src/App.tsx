@@ -52,6 +52,14 @@ import { RiskManagementView } from './components/views/RiskManagementView';
 import { DataSourceManagerView } from './components/views/DataSourceManagerView';
 import { BrokerIntegrationView } from './components/views/BrokerIntegrationView';
 import { SettingsView } from './components/views/SettingsView';
+import { AnalystView } from './components/views/AnalystView';
+import { ScreenerView } from './components/views/ScreenerView';
+import { NewsView } from './components/views/NewsView';
+import { BudgetView } from './components/views/BudgetView';
+import { InstitutionalFlowView } from './components/views/InstitutionalFlowView';
+import { TaxView } from './components/views/TaxView';
+import { CopycatView } from './components/views/CopycatView';
+import { RebalanceView } from './components/views/RebalanceView';
 
 export default function App() {
   // Navigation & Selection State
@@ -70,6 +78,8 @@ export default function App() {
   // Data Source & Simulation State
   const [dataSourceStatus, setDataSourceStatus] = useState<DataSourceStatus>({
     activeSource: 'SIMULATOR',
+    marketDataState: 'SIMULATED',
+    sourceLabel: 'Synthetic Market Simulator',
     isLiveUpdating: true,
     updateFrequencySec: 3,
     lastUpdateTimestamp: new Date().toLocaleTimeString('en-IN', { hour12: false }),
@@ -78,6 +88,7 @@ export default function App() {
     webhookCount: 0,
     statusMessage: 'Realistic Indian market simulation running (NIFTY & SENSEX).',
   });
+
   const [isSimulating, setIsSimulating] = useState<boolean>(true);
 
   // Trade, Risk & Storage State
@@ -338,7 +349,14 @@ export default function App() {
     setPositions((prev) => prev.filter((p) => p.positionId !== positionId));
   };
 
+  const handleCloseAllPositions = () => {
+    positions.forEach((p) => {
+      handleClosePosition(p.positionId, p.currentPrice);
+    });
+  };
+
   const handleToggleKillSwitch = () => {
+
     setRiskSettings((prev) => ({
       ...prev,
       killSwitchActive: !prev.killSwitchActive,
@@ -503,13 +521,25 @@ export default function App() {
               />
             )}
 
+            {activeView === 'analyst' && <AnalystView />}
+            {activeView === 'screener' && <ScreenerView />}
+            {activeView === 'news' && <NewsView />}
+            {activeView === 'budget' && <BudgetView />}
+            {activeView === 'institutional_flow' && <InstitutionalFlowView />}
+            {activeView === 'tax' && <TaxView />}
+            {activeView === 'copycat' && <CopycatView />}
+            {activeView === 'rebalance' && <RebalanceView />}
+
             {activeView === 'paper_trading' && (
+
               <PaperTradingView
                 positions={positions}
                 onClosePosition={handleClosePosition}
+                onCloseAllPositions={handleCloseAllPositions}
                 onRequestApproval={handleRequestApproval}
                 riskSettings={riskSettings}
               />
+
             )}
 
             {activeView === 'journal' && <TradeJournalView entries={journal} />}

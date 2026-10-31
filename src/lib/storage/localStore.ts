@@ -18,9 +18,8 @@ export const DEFAULT_BROKERS: BrokerConfig[] = [
     id: 'ANGEL_ONE',
     name: 'Angel One SmartAPI',
     enabled: false,
-    apiKey: '',
-    clientCode: '',
     status: 'DISCONNECTED',
+    isConfiguredOnServer: false,
     isSandboxed: true,
     liveOrderExecutionAllowed: false,
   },
@@ -28,9 +27,8 @@ export const DEFAULT_BROKERS: BrokerConfig[] = [
     id: 'SAHI',
     name: 'Sahi Broker API',
     enabled: false,
-    apiKey: '',
-    clientCode: '',
     status: 'DISCONNECTED',
+    isConfiguredOnServer: false,
     isSandboxed: true,
     liveOrderExecutionAllowed: false,
   },
@@ -115,7 +113,19 @@ export function getStoredBrokers(): BrokerConfig[] {
 
 export function saveStoredBrokers(brokers: BrokerConfig[]): void {
   try {
-    localStorage.setItem(KEYS.BROKERS, JSON.stringify(brokers));
+    // Strip any sensitive credentials before localStorage write
+    const sanitized = brokers.map((b) => ({
+      id: b.id,
+      name: b.name,
+      enabled: b.enabled,
+      status: b.status,
+      isConfiguredOnServer: b.isConfiguredOnServer,
+      isSandboxed: b.isSandboxed,
+      liveOrderExecutionAllowed: b.liveOrderExecutionAllowed,
+      lastPing: b.lastPing,
+      lastError: b.lastError,
+    }));
+    localStorage.setItem(KEYS.BROKERS, JSON.stringify(sanitized));
   } catch (err) {
     console.error('Failed to save brokers:', err);
   }

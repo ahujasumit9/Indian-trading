@@ -41,34 +41,66 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
-// API: TradingView Webhook Receiver
-app.post('/api/webhooks/tradingview', (req: Request, res: Response) => {
+// Security middleware & Vault integration
+import { createRateLimiter, validateWebhookSecret, isDuplicatePayload, logSecurityAudit, getAuditLogs } from './src/server/security';
+import { getSanitizedBrokerStatuses, saveServerBrokerCredentials, testBrokerAuthentication } from './src/server/vault';
+
+// Apply Rate Limiter to all API routes (60 req/min)
+app.use('/api', createRateLimiter(60000, 60));
+
+// API: TradingView Webhook Receiver with Secret & Duplicate Validation
+app.post('/api/webhooks/tradingview', validateWebhookSecret, (req: Request, res: Response) => {
   try {
     const payload = req.body;
-    console.log('[TradingView Webhook Received]:', JSON.stringify(payload));
+    if (!payload || typeof payload !== 'object') {
+      return res.status(400).json({ status: 'error', error: 'Invalid JSON payload structure.' });
+    }
+
+    // Input Validation
+    const ticker = String(payload.ticker || payload.symbol || '').trim();
+    const price = parseFloat(payload.price || payload.close || 0);
+
+    if (!ticker) {
+      return res.status(400).json({ status: 'error', error: 'Missing mandatory ticker/symbol in alert.' });
+    }
+
+    if (isNaN(price) || price <= 0) {
+      return res.status(400).json({ status: 'error', error: 'Price must be a positive numeric value.' });
+    }
+
+    // Duplicate Alert Protection (Idempotency)
+    if (isDuplicatePayload(payload, 30)) {
+      logSecurityAudit('DUPLICATE_WEBHOOK_DROPPED', { ticker, price, action: payload.action });
+      return res.status(200).json({
+        status: 'ignored',
+        message: 'Duplicate alert dropped via idempotency filter (already received within 30 seconds).',
+      });
+    }
 
     const alert: StoredWebhook = {
       id: `tv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       receivedAt: new Date().toISOString(),
-      ticker: payload.ticker || payload.symbol || 'NSE:NIFTY50',
-      timeframe: payload.timeframe || payload.interval || '5m',
-      price: parseFloat(payload.price || payload.close || 0),
+      ticker,
+      timeframe: String(payload.timeframe || payload.interval || '5m'),
+      price,
       ema15: payload.ema15 ? parseFloat(payload.ema15) : undefined,
       ema20: payload.ema20 ? parseFloat(payload.ema20) : undefined,
       rsi: payload.rsi ? parseFloat(payload.rsi) : undefined,
       vwap: payload.vwap ? parseFloat(payload.vwap) : undefined,
       volume: payload.volume ? parseFloat(payload.volume) : undefined,
-      action: payload.action || payload.signal || 'ALERT',
-      message: payload.message || payload.alert_message || 'TradingView technical condition triggered',
+      action: String(payload.action || payload.signal || 'ALERT'),
+      message: String(payload.message || payload.alert_message || 'TradingView technical alert condition triggered'),
       rawPayload: payload,
     };
 
     webhookStore.unshift(alert);
     if (webhookStore.length > 100) webhookStore.pop();
 
+    logSecurityAudit('WEBHOOK_ALERT_RECORDED', { id: alert.id, ticker: alert.ticker, price: alert.price });
+
     res.status(200).json({
       status: 'success',
-      message: 'TradingView alert received and logged into India AI Trader engine',
+      message: 'TradingView alert received, authenticated, and logged into India AI Trader engine',
       alertId: alert.id,
     });
   } catch (err: any) {
@@ -83,6 +115,114 @@ app.get('/api/webhooks/tradingview/history', (_req: Request, res: Response) => {
     alerts: webhookStore,
   });
 });
+
+// API: Broker Credentials Vault & Testing Endpoints
+app.get('/api/broker/status', (_req: Request, res: Response) => {
+  res.json(getSanitizedBrokerStatuses());
+});
+
+app.post('/api/broker/configure', (req: Request, res: Response) => {
+  const { id, apiKey, clientCode, password, pin } = req.body;
+  if (!id || (id !== 'ANGEL_ONE' && id !== 'SAHI')) {
+    return res.status(400).json({ error: 'Valid broker id (ANGEL_ONE or SAHI) is required.' });
+  }
+
+  saveServerBrokerCredentials(id, { apiKey, clientCode, password, pin });
+  res.json({ status: 'success', message: `${id} credentials securely saved to server vault.` });
+});
+
+app.post('/api/broker/test-connection', async (req: Request, res: Response) => {
+  const { id } = req.body;
+  if (!id || (id !== 'ANGEL_ONE' && id !== 'SAHI')) {
+    return res.status(400).json({ error: 'Valid broker id (ANGEL_ONE or SAHI) is required.' });
+  }
+
+  const result = await testBrokerAuthentication(id);
+  res.json(result);
+});
+
+// API: Security Audit Logs
+app.get('/api/security/audit-logs', (_req: Request, res: Response) => {
+  res.json({ logs: getAuditLogs() });
+});
+
+// Import durable server storage
+import { db } from './src/server/db';
+
+// API: Durable Orders
+app.get('/api/db/orders', (_req: Request, res: Response) => {
+  res.json({ orders: db.getOrders() });
+});
+
+app.post('/api/db/orders', (req: Request, res: Response) => {
+  const order = req.body;
+  if (!order || !order.id) {
+    return res.status(400).json({ error: 'Order must contain valid id.' });
+  }
+  const saved = db.saveOrder(order);
+  logSecurityAudit('ORDER_PERSISTED', { id: saved.id, index: saved.index, strike: saved.strike, type: saved.optionType });
+  res.json({ status: 'success', order: saved });
+});
+
+app.put('/api/db/orders/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const updated = db.updateOrder(id, req.body);
+  if (!updated) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  res.json({ status: 'success', order: updated });
+});
+
+// API: Durable Trade Journal
+app.get('/api/db/journal', (_req: Request, res: Response) => {
+  res.json({ journal: db.getJournal() });
+});
+
+app.post('/api/db/journal', (req: Request, res: Response) => {
+  const entry = req.body;
+  if (!entry || !entry.ticker) {
+    return res.status(400).json({ error: 'Journal entry must contain valid ticker and pnl.' });
+  }
+  const saved = db.addJournalEntry({
+    id: entry.id || `j_${Date.now()}`,
+    date: entry.date || new Date().toLocaleDateString('en-IN'),
+    ticker: entry.ticker,
+    tradeType: entry.tradeType || 'CALL_BUY',
+    entryPrice: Number(entry.entryPrice) || 0,
+    exitPrice: Number(entry.exitPrice) || 0,
+    pnl: Number(entry.pnl) || 0,
+    netRoi: Number(entry.netRoi) || 0,
+    strategy: entry.strategy || 'Discretionary Options',
+    mistakeTag: entry.mistakeTag,
+    rulesFollowed: Boolean(entry.rulesFollowed),
+    notes: entry.notes || '',
+  });
+  res.json({ status: 'success', entry: saved });
+});
+
+// API: Durable Risk Settings
+app.get('/api/db/risk-settings', (_req: Request, res: Response) => {
+  res.json({ riskSettings: db.getRiskSettings() });
+});
+
+app.post('/api/db/risk-settings', (req: Request, res: Response) => {
+  const updated = db.updateRiskSettings(req.body);
+  logSecurityAudit('RISK_SETTINGS_UPDATED', { maxDailyLoss: updated.maxDailyLoss, killSwitch: updated.killSwitchActive });
+  res.json({ status: 'success', riskSettings: updated });
+});
+
+// API: Cryptographic Approval Record
+app.post('/api/db/audit/approve', (req: Request, res: Response) => {
+  const { fingerprint, ticket, userEmail } = req.body;
+  if (!fingerprint || !ticket) {
+    return res.status(400).json({ error: 'Fingerprint and ticket required for approval record.' });
+  }
+  db.recordApproval({ fingerprint, ticket, userEmail: userEmail || 'user@india-trader' });
+  logSecurityAudit('MANUAL_TRADE_APPROVED', { fingerprint, ticketId: ticket.id, index: ticket.index });
+  res.json({ status: 'success', message: 'Cryptographic approval recorded in server audit ledger.' });
+});
+
+
 
 // API: Angel One SmartAPI Live Quote Proxy
 app.post('/api/market-data/angel/quote', async (req: Request, res: Response) => {

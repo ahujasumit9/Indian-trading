@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { PaperOrderTicket, PaperPosition, RiskSettings } from '../../types/trade';
-import { Briefcase, ArrowUpRight, ArrowDownRight, XCircle, CheckCircle, ShieldCheck, Plus } from 'lucide-react';
+import { Briefcase, ArrowUpRight, ArrowDownRight, XCircle, CheckCircle, ShieldCheck, Plus, AlertOctagon } from 'lucide-react';
 import { MetricCard } from '../common/MetricCard';
+import { MarketDataBadge } from '../common/MarketDataBadge';
 
 interface PaperTradingViewProps {
   positions: PaperPosition[];
   onClosePosition: (id: string, exitPrice?: number) => void;
+  onCloseAllPositions?: () => void;
   onRequestApproval: (ticket: PaperOrderTicket) => void;
   riskSettings: RiskSettings;
 }
@@ -13,11 +15,13 @@ interface PaperTradingViewProps {
 export const PaperTradingView: React.FC<PaperTradingViewProps> = ({
   positions,
   onClosePosition,
+  onCloseAllPositions,
   onRequestApproval,
   riskSettings,
 }) => {
   // Custom Ticket Form State
   const [index, setIndex] = useState<'NIFTY' | 'SENSEX'>('NIFTY');
+
   const [optionType, setOptionType] = useState<'CE' | 'PE'>('CE');
   const [strike, setStrike] = useState<number>(24200);
   const [price, setPrice] = useState<number>(115);
@@ -121,11 +125,25 @@ export const PaperTradingView: React.FC<PaperTradingViewProps> = ({
       {/* Active Positions Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-200 uppercase">
-            Active Open Paper Positions ({positions.length})
-          </span>
-          <span className="text-xs text-slate-500">Live P&L updates with tick stream</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-200 uppercase">
+              Active Open Paper Positions ({positions.length})
+            </span>
+            <span className="text-xs text-slate-500 hidden sm:inline">• Live P&L updates with tick stream</span>
+          </div>
+
+          {positions.length > 0 && onCloseAllPositions && (
+            <button
+              onClick={onCloseAllPositions}
+              className="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-rose-900/50"
+              title="Close and realize all open paper positions immediately"
+            >
+              <AlertOctagon className="w-3.5 h-3.5" />
+              <span>Square-Off All ({positions.length})</span>
+            </button>
+          )}
         </div>
+
 
         {positions.length === 0 ? (
           <div className="p-8 text-center text-slate-500 text-xs">

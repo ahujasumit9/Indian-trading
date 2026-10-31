@@ -18,6 +18,14 @@ import {
   Database,
   Link2,
   Settings as SettingsIcon,
+  Building2,
+  Filter,
+  Newspaper,
+  DollarSign,
+  Landmark,
+  Calculator,
+  Eye,
+  Scale,
   X,
 } from 'lucide-react';
 
@@ -32,6 +40,14 @@ export type NavViewId =
   | 'oi_intel'
   | 'greeks'
   | 'sentiment'
+  | 'analyst'
+  | 'screener'
+  | 'news'
+  | 'budget'
+  | 'institutional_flow'
+  | 'tax'
+  | 'copycat'
+  | 'rebalance'
   | 'strategies'
   | 'backtesting'
   | 'paper_trading'
@@ -99,6 +115,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
     {
+      title: 'Trader Capabilities',
+      items: [
+        { id: 'analyst' as NavViewId, label: 'Bluechips Analyst', icon: Building2 },
+        { id: 'screener' as NavViewId, label: 'F&O Screener', icon: Filter },
+        { id: 'news' as NavViewId, label: 'SEBI/RBI Disclosures', icon: Newspaper },
+        { id: 'budget' as NavViewId, label: 'Margin & Budgeting', icon: DollarSign },
+        { id: 'institutional_flow' as NavViewId, label: 'FII & DII Flows', icon: Landmark },
+        { id: 'tax' as NavViewId, label: 'F&O Tax (Sec 43(5))', icon: Calculator },
+        { id: 'copycat' as NavViewId, label: 'Super-Investor Tracker', icon: Eye },
+        { id: 'rebalance' as NavViewId, label: 'Capital Rebalancing', icon: Scale },
+      ],
+    },
+    {
       title: 'Execution & Research',
       items: [
         { id: 'strategies' as NavViewId, label: 'Strategy Builder', icon: Sliders },
@@ -123,6 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
   ];
+
 
   return (
     <>

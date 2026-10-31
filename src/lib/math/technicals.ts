@@ -178,6 +178,24 @@ export function calculateBollingerBands(closes: number[], period: number = 20, m
 }
 
 /**
+ * Calculate Volume Weighted Average Price (VWAP)
+ */
+export function calculateVWAP(highs: number[], lows: number[], closes: number[], volumes: number[]): number[] {
+  let cumVol = 0;
+  let cumTypicalVol = 0;
+  const vwapValues: number[] = new Array(closes.length).fill(0);
+
+  for (let i = 0; i < closes.length; i++) {
+    const typicalPrice = (highs[i] + lows[i] + closes[i]) / 3;
+    const vol = Math.max(1, volumes[i]);
+    cumVol += vol;
+    cumTypicalVol += typicalPrice * vol;
+    vwapValues[i] = Number((cumTypicalVol / cumVol).toFixed(2));
+  }
+  return vwapValues;
+}
+
+/**
  * Enrich raw candles with full technical indicators
  * Ported from and substantially enhancing trader/indicators.py
  */
@@ -210,17 +228,9 @@ export function enrichCandlesWithIndicators(rawCandles: Candle[]): Candle[] {
   const volumeMA = calculateEMA(volumes, 20);
 
   // Cumulative VWAP (Typical Price * Volume / Cumulative Volume)
-  let cumVol = 0;
-  let cumTypicalVol = 0;
-  const vwapValues: number[] = new Array(rawCandles.length).fill(0);
+  const vwapValues = calculateVWAP(highs, lows, closes, volumes);
 
-  for (let i = 0; i < rawCandles.length; i++) {
-    const typicalPrice = (rawCandles[i].high + rawCandles[i].low + rawCandles[i].close) / 3;
-    const vol = Math.max(1, rawCandles[i].volume);
-    cumVol += vol;
-    cumTypicalVol += typicalPrice * vol;
-    vwapValues[i] = cumTypicalVol / cumVol;
-  }
+
 
   return rawCandles.map((c, i) => ({
     ...c,
