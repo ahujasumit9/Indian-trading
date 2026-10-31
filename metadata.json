@@ -1,0 +1,6 @@
+{
+  "name": "India AI Trader - SENSEX & NIFTY Options Intelligence",
+  "description": "Institutional-grade AI-powered Indian options trading platform for BSE SENSEX and NSE NIFTY with broker-independent market data, technical & volume profile engines, options Greeks, explainable AI signals, and paper trading.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
